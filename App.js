@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Alert, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import ReorderableList, { reorderItems } from "react-native-reorderable-list";
+import { useAnimatedScrollHandler, useSharedValue } from "react-native-reanimated";
+import { scheduleOnRN } from "react-native-worklets";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -345,6 +347,24 @@ function Player() {
   }, []);
 
   // Glisser-déposer : l'ordre choisi est gardé (sauvegardé avec la playlist).
+  // Bouton « haut de liste » : visible après ~300 px de défilement.
+  const listRef = useRef(null);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const scrolledFar = useSharedValue(false);
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      const far = e.contentOffset.y > 300;
+      if (far !== scrolledFar.value) {
+        scrolledFar.value = far;
+        scheduleOnRN(setShowScrollTop, far);
+      }
+    },
+  });
+  const scrollToTop = useCallback(() => {
+    tap();
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  }, []);
+
   const handleReorder = useCallback(({ from, to }) => {
     if (from === to) return;
     setTracks((prev) => reorderItems(prev, from, to));
@@ -412,15 +432,12 @@ function Player() {
     [currentId, status.playing, theme, handleRowPress, handleDelete]
   );
 
+  // Titre + compteur : défilent avec la liste (seul le bouton + reste fixe).
   const header = (
-    <View
-      style={[
-        styles.header,
-        { paddingTop: insets.top + space.md, borderBottomColor: tracks.length ? theme.border : "transparent" },
-      ]}
-    >
+    <View style={[styles.header, { paddingTop: insets.top + space.lg }]}>
       <View style={styles.titleRow}>
-        <View style={{ flex: 1 }}>
+        {/* Marge à droite : place du bouton + flottant. */}
+        <View style={{ flex: 1, marginRight: tracks.length ? 48 + space.md : 0 }}>
           <Text
             style={[styles.appName, { color: theme.text }]}
             // Diagnostic en développement : appui long sur le titre.
@@ -434,20 +451,6 @@ function Player() {
           </Text>
           <Text style={[styles.subtitle, { color: theme.textMuted }]}>{subtitle}</Text>
         </View>
-        {tracks.length ? (
-          <Pressable
-            onPress={() => openSheet("choose")}
-            accessibilityRole="button"
-            accessibilityLabel="Ajouter des morceaux ou un lien"
-            style={({ pressed }) => [
-              styles.addBtn,
-              { backgroundColor: theme.accentSoft, borderColor: theme.accentSoftBorder },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Ionicons name="add" size={26} color={theme.accentText} />
-          </Pressable>
-        ) : null}
       </View>
     </View>
   );
@@ -480,27 +483,75 @@ function Player() {
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       <StatusBar style={theme.dark ? "light" : "dark"} />
 
-      {/* En-tête fixe (titre + bouton +) : reste visible quand la playlist défile. */}
-      {header}
-
+      <View style={styles.listArea}>
       <ReorderableList
+        ref={listRef}
         data={tracks}
         keyExtractor={(t) => t.id}
         renderItem={renderItem}
         onReorder={handleReorder}
+        onScroll={scrollHandler}
         style={{ flex: 1 }}
+        ListHeaderComponent={header}
         ListFooterComponent={footer}
         ListEmptyComponent={loaded ? <EmptyState theme={theme} onAdd={() => openSheet("choose")} /> : null}
         contentContainerStyle={{
           // Le panneau de lecture est ancré sous la liste : pas besoin de
           // réserver sa hauteur ; l'encoche du bas n'est utile que sans panneau.
-          paddingTop: space.sm,
-          paddingBottom: (tracks.length ? 0 : insets.bottom) + space.md,
+          // Place pour le bouton « haut de liste » sous le dernier morceau.
+          paddingBottom: (tracks.length ? 48 : insets.bottom) + space.md,
         }}
         ItemSeparatorComponent={() => <View style={{ height: space.xs }} />}
         showsVerticalScrollIndicator={false}
       />
 
+      {/* Bandeau derrière la barre d'état : la liste ne passe pas dessous. */}
+      <View
+        pointerEvents="none"
+        style={[styles.statusScrim, { height: insets.top, backgroundColor: theme.background }]}
+      />
+
+      {/* Bouton + : toujours visible, même quand la playlist défile. */}
+      {tracks.length ? (
+        <Pressable
+          onPress={() => openSheet("choose")}
+          accessibilityRole="button"
+          accessibilityLabel="Ajouter des morceaux ou un lien"
+          style={({ pressed }) => [
+            styles.addFab,
+            {
+              top: insets.top + space.lg,
+              backgroundColor: theme.accent,
+              shadowColor: theme.dark ? "#000" : theme.accent,
+            },
+            pressed && { transform: [{ scale: 0.94 }] },
+          ]}
+        >
+          <Ionicons name="add" size={28} color={theme.onAccent} />
+        </Pressable>
+      ) : null}
+
+      {/* Retour en haut : apparaît après avoir fait défiler la playlist. */}
+      {showScrollTop ? (
+        <Pressable
+          onPress={scrollToTop}
+          hitSlop={8}
+          accessibilityRole="button"
+          accessibilityLabel="Revenir en haut de la playlist"
+          style={({ pressed }) => [
+            styles.topBtn,
+            {
+              backgroundColor: theme.surfaceRaised,
+              borderColor: theme.border,
+              shadowColor: theme.dark ? "#000" : "#1C1917",
+            },
+            pressed && { opacity: 0.7 },
+          ]}
+        >
+          <Ionicons name="arrow-up" size={20} color={theme.accentText} />
+        </Pressable>
+      ) : null}
+      </View>
 
       {tracks.length ? (
       <NowPlaying
@@ -559,10 +610,11 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
+  listArea: { flex: 1 },
+  statusScrim: { position: "absolute", top: 0, left: 0, right: 0 },
   header: {
     paddingHorizontal: space.md,
     paddingBottom: space.md,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   titleRow: { flexDirection: "row", alignItems: "center", gap: space.md },
   appName: {
@@ -572,13 +624,35 @@ const styles = StyleSheet.create({
     lineHeight: 36,
   },
   subtitle: { fontSize: font.sm, marginTop: space.xs },
-  addBtn: {
+  // Bouton + flottant, aligné sur le titre au repos.
+  addFab: {
+    position: "absolute",
+    right: space.md,
     width: 48,
     height: 48,
     borderRadius: radius.full,
-    borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  // Petit bouton « haut de liste », juste au-dessus du panneau de lecture.
+  topBtn: {
+    position: "absolute",
+    right: space.md,
+    bottom: space.sm,
+    width: 40,
+    height: 40,
+    borderRadius: radius.full,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
   clearBtn: { alignSelf: "center", paddingVertical: space.lg },
   clearText: { fontSize: font.sm, fontWeight: "500" },
