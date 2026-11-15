@@ -109,16 +109,19 @@ function Player() {
     return () => clearInterval(id);
   }, [isYT, ytPlaying]);
 
-  // iOS peut refuser de démarrer le son sans un vrai toucher sur la vidéo :
-  // si rien ne démarre après 3 s, on invite à toucher la vidéo.
+  // Le lecteur YouTube refuse de démarrer AVEC le son tant qu'on n'a pas touché
+  // la vidéo elle-même une première fois (il la remet aussitôt à l'arrêt).
+  // Après ce premier toucher, nos boutons pilotent la vidéo normalement.
+  // On affiche donc l'invitation dès que la lecture demandée ne démarre pas.
   useEffect(() => {
-    if (!isYT || !ytPlaying || ytActuallyPlaying) {
+    if (!isYT || ytActuallyPlaying) {
       setYtNeedsTap(false);
       return;
     }
-    const id = setTimeout(() => setYtNeedsTap(true), 3000);
+    if (!ytPlaying && ytState !== "video cued" && ytState !== "unstarted") return;
+    const id = setTimeout(() => setYtNeedsTap(true), 1200);
     return () => clearTimeout(id);
-  }, [isYT, ytPlaying, ytActuallyPlaying]);
+  }, [isYT, ytPlaying, ytActuallyPlaying, ytState]);
 
   // Demande la lecture YouTube. Si la demande était déjà « en cours » (bloquée),
   // on la relance pour renvoyer réellement l'ordre au lecteur.
@@ -475,9 +478,11 @@ function Player() {
         webViewProps={{ allowsInlineMediaPlayback: true, mediaPlaybackRequiresUserAction: false }}
       />
       {ytNeedsTap ? (
-        <View style={styles.tapHint} pointerEvents="none">
-          <Ionicons name="hand-left-outline" size={16} color="#FFFFFF" />
-          <Text style={styles.tapHintText}>Touche la vidéo pour lancer le son</Text>
+        <View style={[styles.tapHint, { backgroundColor: theme.accent }]} pointerEvents="none">
+          <Ionicons name="hand-left" size={16} color={theme.onAccent} />
+          <Text style={[styles.tapHintText, { color: theme.onAccent }]}>
+            Touche la vidéo une fois : ensuite, les boutons prennent le relais
+          </Text>
         </View>
       ) : null}
     </View>
@@ -599,9 +604,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: space.sm,
     paddingVertical: space.sm,
-    backgroundColor: "rgba(12, 10, 9, 0.85)",
+    paddingHorizontal: space.md,
   },
-  tapHintText: { color: "#FFFFFF", fontSize: font.sm, fontWeight: "600" },
+  tapHintText: { flexShrink: 1, fontSize: font.sm, fontWeight: "700" },
   clearBtn: { alignSelf: "center", paddingVertical: space.lg },
   clearText: { fontSize: font.sm, fontWeight: "500" },
 });
