@@ -1,10 +1,18 @@
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { font, formatSize, radius, space } from "../theme";
 
+const SOURCE = {
+  youtube: { icon: "logo-youtube", label: "YouTube" },
+  stream: { icon: "radio-outline", label: "Streaming" },
+};
+
 function TrackRow({ track, index, isCurrent, isPlaying, theme, onPress, onDelete }) {
-  const meta = [track.format, formatSize(track.size)].filter(Boolean).join(" · ");
+  const source = SOURCE[track.kind];
+  const meta = source
+    ? [source.label, track.author].filter(Boolean).join(" · ")
+    : [track.format, formatSize(track.size)].filter(Boolean).join(" · ");
 
   return (
     <Pressable
@@ -28,13 +36,18 @@ function TrackRow({ track, index, isCurrent, isPlaying, theme, onPress, onDelete
           },
         ]}
       >
+        {track.thumbnail ? (
+          <Image source={{ uri: track.thumbnail }} style={styles.thumb} resizeMode="cover" />
+        ) : null}
         {isCurrent ? (
-          <Ionicons
-            name={isPlaying ? "volume-high" : "pause"}
-            size={20}
-            color={theme.onAccent}
-          />
-        ) : (
+          <View style={[styles.currentOverlay, track.thumbnail && styles.thumbOverlay]}>
+            <Ionicons
+              name={isPlaying ? "volume-high" : "pause"}
+              size={20}
+              color={track.thumbnail ? "#FFFFFF" : theme.onAccent}
+            />
+          </View>
+        ) : track.thumbnail ? null : (
           <Text style={[styles.index, { color: theme.accentText }]}>{index + 1}</Text>
         )}
       </View>
@@ -47,9 +60,12 @@ function TrackRow({ track, index, isCurrent, isPlaying, theme, onPress, onDelete
           {track.title}
         </Text>
         {meta ? (
-          <Text numberOfLines={1} style={[styles.meta, { color: theme.textMuted }]}>
-            {meta}
-          </Text>
+          <View style={styles.metaRow}>
+            {source ? <Ionicons name={source.icon} size={14} color={theme.textMuted} /> : null}
+            <Text numberOfLines={1} style={[styles.meta, { color: theme.textMuted }]}>
+              {meta}
+            </Text>
+          </View>
         ) : null}
       </View>
 
@@ -86,7 +102,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
+  thumb: { ...StyleSheet.absoluteFillObject },
+  currentOverlay: { alignItems: "center", justifyContent: "center" },
+  thumbOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(12, 10, 9, 0.55)",
+  },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: space.xs },
   index: {
     fontSize: font.sm,
     fontWeight: "600",
@@ -94,7 +118,7 @@ const styles = StyleSheet.create({
   },
   texts: { flex: 1, gap: 2 },
   title: { fontSize: font.base, fontWeight: "600" },
-  meta: { fontSize: font.sm },
+  meta: { fontSize: font.sm, flexShrink: 1 },
   iconBtn: {
     width: 44,
     height: 44,

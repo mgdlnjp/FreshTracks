@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -7,14 +7,15 @@ import * as DocumentPicker from "expo-document-picker";
 import * as Haptics from "expo-haptics";
 import * as SystemUI from "expo-system-ui";
 import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
+import YoutubePlayer from "react-native-youtube-iframe";
 
 import { font, formatSize, radius, space, useTheme } from "./src/theme";
 import { deleteTrackFile, importAssets, loadLibrary, saveLibrary } from "./src/library";
 import TrackRow from "./src/components/TrackRow";
 import EmptyState from "./src/components/EmptyState";
 import NowPlaying from "./src/components/NowPlaying";
+import AddSheet from "./src/components/AddSheet";
 
-const NOW_PLAYING_HEIGHT = 210;
 const REPEAT_CYCLE = { off: "all", all: "one", one: "off" };
 
 function tap() {
@@ -24,17 +25,27 @@ function tap() {
 function Player() {
   const theme = useTheme();
   const insets = useSafeAreaInsets();
+  const { width } = useWindowDimensions();
 
   const [tracks, setTracks] = useState([]);
   const [loaded, setLoaded] = useState(false);
   const [currentId, setCurrentId] = useState(null);
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState("off");
+  const [sheet, setSheet] = useState({ visible: false, mode: "choose" });
+  const [cardHeight, setCardHeight] = useState(0);
 
+  // Lecteur audio (fichiers + streaming)
   const player = useAudioPlayer(null, { updateInterval: 250 });
-  const status = useAudioPlayerStatus(player);
+  const audioStatus = useAudioPlayerStatus(player);
 
-  // Refs pour toujours lire l'état à jour dans les callbacks audio.
+  // Lecteur YouTube (iframe officielle)
+  const ytRef = useRef(null);
+  const [ytPlaying, setYtPlaying] = useState(false);
+  const [ytTime, setYtTime] = useState(0);
+  const [ytDuration, setYtDuration] = useState(0);
+
+  // Refs pour toujours lire l'état à jour dans les callbacks.
   const tracksRef = useRef(tracks);
   const currentIdRef = useRef(currentId);
   tracksRef.current = tracks;
@@ -42,6 +53,16 @@ function Player() {
 
   const currentIndex = tracks.findIndex((t) => t.id === currentId);
   const currentTrack = currentIndex >= 0 ? tracks[currentIndex] : null;
+  const isYT = currentTrack?.kind === "youtube";
+
+  // État de lecture unifié pour l'interface.
+  const status = isYT
+    ? { playing: ytPlaying, currentTime: ytTime, duration: ytDuration }
+    : {
+        playing: audioStatus.playing,
+        currentTime: audioStatus.currentTime,
+        duration: audioStatus.duration,
+      };
 
   // --- Initialisation -------------------------------------------------------
   useEffect(() => {
@@ -68,14 +89,45 @@ function Player() {
     player.loop = repeat === "one";
   }, [player, repeat]);
 
+  // Position de la vidéo YouTube (l'iframe ne pousse pas de mises à jour).
+  useEffect(() => {
+    if (!isYT || !ytPlaying) return;
+    const id = setInterval(async () => {
+      try {
+        const [t, d] = await Promise.all([
+          ytRef.current?.getCurrentTime(),
+          ytRef.current?.getDuration(),
+        ]);
+        if (Number.isFinite(t)) setYtTime(t);
+        if (Number.isFinite(d) && d > 0) setYtDuration(d);
+      } catch {}
+    }, 500);
+    return () => clearInterval(id);
+  }, [isYT, ytPlaying]);
+
   // --- Lecture --------------------------------------------------------------
   const playTrack = useCallback(
     (track) => {
+      if (track.kind === "youtube") {
+        player.pause();
+        try {
+          player.clearLockScreenControls();
+        } catch {}
+        setYtTime(0);
+        setYtDuration(0);
+        setYtPlaying(true);
+        setCurrentId(track.id);
+        return;
+      }
+      setYtPlaying(false);
       player.replace({ uri: track.uri });
       player.play();
       setCurrentId(track.id);
       try {
-        player.setActiveForLockScreen(true, { title: track.title, artist: "FreshTracks" });
+        player.setActiveForLockScreen(true, {
+          title: track.title,
+          artist: track.author || "FreshTracks",
+        });
       } catch {}
     },
     [player]
@@ -99,6 +151,18 @@ function Player() {
     [shuffle, repeat]
   );
 
+  const seekTo = useCallback(
+    (sec) => {
+      if (isYT) {
+        ytRef.current?.seekTo(sec, true);
+        setYtTime(sec);
+      } else {
+        player.seekTo(sec).catch(() => {});
+      }
+    },
+    [isYT, player]
+  );
+
   const handleNext = useCallback(
     (opts) => {
       const next = pickNext(1, opts);
@@ -106,27 +170,79 @@ function Player() {
         playTrack(next);
       } else {
         // Fin de la playlist : on s'arrête au début du dernier morceau.
-        player.pause();
-        player.seekTo(0).catch(() => {});
+        if (isYT) setYtPlaying(false);
+        else player.pause();
+        seekTo(0);
       }
     },
-    [pickNext, playTrack, player]
+    [pickNext, playTrack, player, isYT, seekTo]
   );
 
   const handlePrev = useCallback(() => {
     tap();
     if (status.currentTime > 3) {
-      player.seekTo(0).catch(() => {});
+      seekTo(0);
       return;
     }
     const prev = pickNext(-1);
     if (prev) playTrack(prev);
-  }, [status.currentTime, pickNext, playTrack, player]);
+  }, [status.currentTime, pickNext, playTrack, seekTo]);
 
+  // Fin d'un fichier / flux audio.
   useEffect(() => {
-    if (status.didJustFinish && repeat !== "one") handleNext({ auto: true });
+    if (!isYT && audioStatus.didJustFinish && repeat !== "one") handleNext({ auto: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status.didJustFinish]);
+  }, [audioStatus.didJustFinish]);
+
+  // Événements de l'iframe YouTube.
+  const onYoutubeState = useCallback(
+    (state) => {
+      if (state === "playing") setYtPlaying(true);
+      else if (state === "paused") setYtPlaying(false);
+      else if (state === "ended") {
+        if (repeat === "one") {
+          ytRef.current?.seekTo(0, true);
+          setYtPlaying(true);
+        } else {
+          handleNext({ auto: true });
+        }
+      }
+    },
+    [repeat, handleNext]
+  );
+
+  const onYoutubeError = useCallback(
+    (err) => {
+      setYtPlaying(false);
+      const embed = /embed|150|101/i.test(String(err));
+      Alert.alert(
+        "Vidéo indisponible",
+        embed
+          ? "Son auteur interdit la lecture en dehors de YouTube."
+          : "Cette vidéo n'a pas pu être lue.",
+        [{ text: "Passer au suivant", onPress: () => handleNext({ auto: true }) }, { text: "OK" }]
+      );
+    },
+    [handleNext]
+  );
+
+  const setPlaying = useCallback(
+    (shouldPlay) => {
+      if (isYT) {
+        setYtPlaying(shouldPlay);
+        return;
+      }
+      if (shouldPlay) {
+        if (audioStatus.duration > 0 && audioStatus.currentTime >= audioStatus.duration - 0.5) {
+          player.seekTo(0).catch(() => {});
+        }
+        player.play();
+      } else {
+        player.pause();
+      }
+    },
+    [isYT, audioStatus.duration, audioStatus.currentTime, player]
+  );
 
   const handleTogglePlay = useCallback(() => {
     tap();
@@ -134,40 +250,34 @@ function Player() {
       if (tracks.length) playTrack(shuffle ? tracks[Math.floor(Math.random() * tracks.length)] : tracks[0]);
       return;
     }
-    if (status.playing) {
-      player.pause();
-    } else {
-      if (status.duration > 0 && status.currentTime >= status.duration - 0.5) {
-        player.seekTo(0).catch(() => {});
-      }
-      player.play();
-    }
-  }, [currentTrack, tracks, shuffle, status, player, playTrack]);
+    setPlaying(!status.playing);
+  }, [currentTrack, tracks, shuffle, status.playing, playTrack, setPlaying]);
 
   const handleRowPress = useCallback(
     (track) => {
       tap();
-      if (track.id === currentIdRef.current) {
-        status.playing ? player.pause() : player.play();
-      } else {
-        playTrack(track);
-      }
+      if (track.id === currentIdRef.current) setPlaying(!status.playing);
+      else playTrack(track);
     },
-    [status.playing, player, playTrack]
+    [status.playing, setPlaying, playTrack]
   );
-
-  const handleSeek = useCallback((sec) => player.seekTo(sec).catch(() => {}), [player]);
 
   // --- Bibliothèque ---------------------------------------------------------
   const stopPlayback = useCallback(() => {
     player.pause();
+    setYtPlaying(false);
     setCurrentId(null);
     try {
       player.clearLockScreenControls();
     } catch {}
   }, [player]);
 
-  const handleAdd = useCallback(async () => {
+  const openSheet = useCallback((mode = "choose") => {
+    tap();
+    setSheet({ visible: true, mode });
+  }, []);
+
+  const handlePickFiles = useCallback(async () => {
     try {
       const res = await DocumentPicker.getDocumentAsync({
         type: ["audio/*"],
@@ -182,6 +292,11 @@ function Player() {
       Alert.alert("Import impossible", "Ce fichier n'a pas pu être ajouté.");
       console.warn(e);
     }
+  }, []);
+
+  const handleAddTrack = useCallback((track) => {
+    setTracks((prev) => [...prev, track]);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   }, []);
 
   const handleDelete = useCallback(
@@ -251,9 +366,9 @@ function Player() {
         </View>
         {tracks.length ? (
           <Pressable
-            onPress={handleAdd}
+            onPress={() => openSheet("choose")}
             accessibilityRole="button"
-            accessibilityLabel="Ajouter des morceaux"
+            accessibilityLabel="Ajouter des morceaux ou un lien"
             style={({ pressed }) => [
               styles.addBtn,
               { backgroundColor: theme.accentSoft, borderColor: theme.accentSoftBorder },
@@ -310,6 +425,22 @@ function Player() {
     </Pressable>
   ) : null;
 
+  // Largeur de la vidéo = carte (écran − 2×8) − padding (2×16).
+  const videoWidth = width - space.sm * 2 - space.md * 2;
+  const video = isYT ? (
+    <YoutubePlayer
+      ref={ytRef}
+      width={videoWidth}
+      height={Math.round((videoWidth * 9) / 16)}
+      videoId={currentTrack.videoId}
+      play={ytPlaying}
+      onChangeState={onYoutubeState}
+      onError={onYoutubeError}
+      initialPlayerParams={{ controls: false, modestbranding: true, rel: false }}
+      webViewProps={{ allowsInlineMediaPlayback: true, mediaPlaybackRequiresUserAction: false }}
+    />
+  ) : null;
+
   return (
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       <StatusBar style={theme.dark ? "light" : "dark"} />
@@ -320,9 +451,9 @@ function Player() {
         renderItem={renderItem}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
-        ListEmptyComponent={loaded ? <EmptyState theme={theme} onAdd={handleAdd} /> : null}
+        ListEmptyComponent={loaded ? <EmptyState theme={theme} onAdd={() => openSheet("choose")} /> : null}
         contentContainerStyle={{
-          paddingBottom: (currentTrack ? NOW_PLAYING_HEIGHT : 0) + insets.bottom + space.xl,
+          paddingBottom: (currentTrack ? cardHeight + space.sm : 0) + insets.bottom + space.xl,
         }}
         ItemSeparatorComponent={() => <View style={{ height: space.xs }} />}
         showsVerticalScrollIndicator={false}
@@ -342,13 +473,15 @@ function Player() {
         status={status}
         shuffle={shuffle}
         repeat={repeat}
+        video={video}
+        onLayout={(e) => setCardHeight(e.nativeEvent.layout.height)}
         onTogglePlay={handleTogglePlay}
         onPrev={handlePrev}
         onNext={() => {
           tap();
           handleNext();
         }}
-        onSeek={handleSeek}
+        onSeek={seekTo}
         onToggleShuffle={() => {
           tap();
           setShuffle((s) => !s);
@@ -358,6 +491,15 @@ function Player() {
           setRepeat((r) => REPEAT_CYCLE[r]);
         }}
         bottomInset={insets.bottom}
+      />
+
+      <AddSheet
+        visible={sheet.visible}
+        initialMode={sheet.mode}
+        theme={theme}
+        onClose={() => setSheet((s) => ({ ...s, visible: false }))}
+        onPickFiles={handlePickFiles}
+        onAddTrack={handleAddTrack}
       />
     </View>
   );

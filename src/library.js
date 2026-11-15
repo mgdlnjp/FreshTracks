@@ -14,8 +14,10 @@ export async function loadLibrary() {
     const raw = await AsyncStorage.getItem(STORAGE_KEY);
     if (!raw) return [];
     const tracks = JSON.parse(raw);
-    // On ignore les fichiers qui auraient disparu du téléphone.
+    // On ignore les fichiers locaux qui auraient disparu du téléphone
+    // (les liens YouTube / streaming sont toujours conservés).
     return tracks.filter((t) => {
+      if (t.kind && t.kind !== "file") return true;
       try {
         return new File(t.uri).exists;
       } catch {
@@ -64,6 +66,7 @@ export async function importAssets(assets) {
     }
     imported.push({
       id,
+      kind: "file",
       title: prettyName(asset.name),
       format: extension(asset.name),
       size: asset.size ?? null,
@@ -75,6 +78,7 @@ export async function importAssets(assets) {
 }
 
 export function deleteTrackFile(track) {
+  if (track.kind && track.kind !== "file") return;
   try {
     const f = new File(track.uri);
     if (f.exists && f.uri.startsWith(Paths.document.uri)) f.delete();

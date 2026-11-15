@@ -36,6 +36,8 @@ export default function NowPlaying({
   onToggleShuffle,
   onCycleRepeat,
   bottomInset,
+  video,
+  onLayout,
 }) {
   const [scrub, setScrub] = useState(null);
   const duration = status.duration > 0 ? status.duration : 0;
@@ -46,12 +48,14 @@ export default function NowPlaying({
 
   if (!track) return null;
 
-  const repeatIcon = repeat === "one" ? "repeat" : "repeat";
+  const repeatIcon = "repeat";
+  const sourceLabel = track.kind === "youtube" ? "YouTube · " : track.kind === "stream" ? "Streaming · " : "";
   const repeatLabel =
     repeat === "off" ? "Répéter : désactivé" : repeat === "all" ? "Répéter : tout" : "Répéter : ce morceau";
 
   return (
     <View
+      onLayout={onLayout}
       style={[
         styles.card,
         {
@@ -62,15 +66,23 @@ export default function NowPlaying({
         },
       ]}
     >
+      {video ? <View style={styles.video}>{video}</View> : null}
       <View style={styles.head}>
-        <View style={[styles.artwork, { backgroundColor: theme.accent }]}>
-          <Ionicons name="musical-note" size={22} color={theme.onAccent} />
-        </View>
+        {video ? null : (
+          <View style={[styles.artwork, { backgroundColor: theme.accent }]}>
+            <Ionicons
+              name={track.kind === "stream" ? "radio" : "musical-note"}
+              size={22}
+              color={theme.onAccent}
+            />
+          </View>
+        )}
         <View style={{ flex: 1 }}>
           <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
             {track.title}
           </Text>
           <Text style={[styles.sub, { color: theme.textMuted }]}>
+            {sourceLabel}
             {position} sur {total}
           </Text>
         </View>
@@ -159,6 +171,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.18,
     shadowRadius: 24,
     elevation: 12,
+  },
+  video: {
+    borderRadius: radius.md,
+    overflow: "hidden",
+    marginBottom: space.md,
+    backgroundColor: "#000",
   },
   head: { flexDirection: "row", alignItems: "center", gap: space.md },
   artwork: {

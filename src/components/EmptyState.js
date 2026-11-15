@@ -13,8 +13,8 @@ export default function EmptyState({ theme, onAdd }) {
       </View>
       <Text style={[styles.title, { color: theme.text }]}>Ta playlist est vide</Text>
       <Text style={[styles.body, { color: theme.textMuted }]}>
-        Importe des fichiers audio depuis ton téléphone. Ils restent dans l'app,
-        même après l'avoir fermée.
+        Importe des fichiers audio depuis ton téléphone ou colle un lien YouTube,
+        Dropbox ou de radio. Tout reste dans l'app, même après l'avoir fermée.
       </Text>
       <Pressable
         onPress={onAdd}
