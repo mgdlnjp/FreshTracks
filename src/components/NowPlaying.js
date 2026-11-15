@@ -38,6 +38,7 @@ export default function NowPlaying({
   bottomInset,
   video,
   onLayout,
+  onClose,
 }) {
   const [scrub, setScrub] = useState(null);
   const duration = status.duration > 0 ? status.duration : 0;
@@ -86,8 +87,22 @@ export default function NowPlaying({
             {position} sur {total}
           </Text>
         </View>
+        {video ? (
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Fermer la vidéo"
+            style={({ pressed }) => [styles.close, { backgroundColor: theme.background }, pressed && { opacity: 0.6 }]}
+          >
+            <Ionicons name="close" size={20} color={theme.textMuted} />
+          </Pressable>
+        ) : null}
       </View>
 
+      {/* Vidéo YouTube : on la pilote directement, sans nos boutons. */}
+      {video ? null : (
+      <>
       <Slider
         style={styles.slider}
         minimumValue={0}
@@ -153,6 +168,8 @@ export default function NowPlaying({
           ) : null}
         </View>
       </View>
+      </>
+      )}
     </View>
   );
 }
@@ -166,7 +183,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     paddingTop: space.md,
     paddingHorizontal: space.md,
-    paddingBottom: space.sm,
+    paddingBottom: space.md,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.18,
     shadowRadius: 24,
@@ -179,6 +196,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
   },
   head: { flexDirection: "row", alignItems: "center", gap: space.md },
+  close: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   artwork: {
     width: 44,
     height: 44,

@@ -44,7 +44,6 @@ function Player() {
   const ytRef = useRef(null);
   const [ytPlaying, setYtPlaying] = useState(false);
   const [ytState, setYtState] = useState("unstarted");
-  const [ytNeedsTap, setYtNeedsTap] = useState(false);
   const [ytTime, setYtTime] = useState(0);
   const [ytDuration, setYtDuration] = useState(0);
   const ytActuallyPlaying = ytState === "playing" || ytState === "buffering";
@@ -108,20 +107,6 @@ function Player() {
     }, 500);
     return () => clearInterval(id);
   }, [isYT, ytPlaying]);
-
-  // Le lecteur YouTube refuse de démarrer AVEC le son tant qu'on n'a pas touché
-  // la vidéo elle-même une première fois (il la remet aussitôt à l'arrêt).
-  // Après ce premier toucher, nos boutons pilotent la vidéo normalement.
-  // On affiche donc l'invitation dès que la lecture demandée ne démarre pas.
-  useEffect(() => {
-    if (!isYT || ytActuallyPlaying) {
-      setYtNeedsTap(false);
-      return;
-    }
-    if (!ytPlaying && ytState !== "video cued" && ytState !== "unstarted") return;
-    const id = setTimeout(() => setYtNeedsTap(true), 1200);
-    return () => clearTimeout(id);
-  }, [isYT, ytPlaying, ytActuallyPlaying, ytState]);
 
   // Demande la lecture YouTube. Si la demande était déjà « en cours » (bloquée),
   // on la relance pour renvoyer réellement l'ordre au lecteur.
@@ -462,30 +447,20 @@ function Player() {
 
   // Largeur de la vidéo = carte (écran − 2×8) − padding (2×16).
   const videoWidth = width - space.sm * 2 - space.md * 2;
+  // Vidéo YouTube pilotée directement (ses propres contrôles), sans nos boutons.
   // YouTube impose un lecteur visible d'au moins 200 px de haut.
   const video = isYT ? (
-    <View>
-      <YoutubePlayer
-        ref={ytRef}
-        width={videoWidth}
-        height={Math.max(200, Math.round((videoWidth * 9) / 16))}
-        videoId={currentTrack.videoId}
-        play={ytPlaying}
-        onChangeState={onYoutubeState}
-        onError={onYoutubeError}
-        // Contrôles YouTube actifs : un toucher sur la vidéo lance toujours la lecture sur iOS.
-        initialPlayerParams={{ controls: true, modestbranding: true, rel: false }}
-        webViewProps={{ allowsInlineMediaPlayback: true, mediaPlaybackRequiresUserAction: false }}
-      />
-      {ytNeedsTap ? (
-        <View style={[styles.tapHint, { backgroundColor: theme.accent }]} pointerEvents="none">
-          <Ionicons name="hand-left" size={16} color={theme.onAccent} />
-          <Text style={[styles.tapHintText, { color: theme.onAccent }]}>
-            Touche la vidéo une fois : ensuite, les boutons prennent le relais
-          </Text>
-        </View>
-      ) : null}
-    </View>
+    <YoutubePlayer
+      ref={ytRef}
+      width={videoWidth}
+      height={Math.max(200, Math.round((videoWidth * 9) / 16))}
+      videoId={currentTrack.videoId}
+      play={ytPlaying}
+      onChangeState={onYoutubeState}
+      onError={onYoutubeError}
+      initialPlayerParams={{ controls: true, modestbranding: true, rel: false }}
+      webViewProps={{ allowsInlineMediaPlayback: true, mediaPlaybackRequiresUserAction: false }}
+    />
   ) : null;
 
   return (
@@ -521,6 +496,10 @@ function Player() {
         shuffle={shuffle}
         repeat={repeat}
         video={video}
+        onClose={() => {
+          tap();
+          stopPlayback();
+        }}
         onLayout={(e) => setCardHeight(e.nativeEvent.layout.height)}
         onTogglePlay={handleTogglePlay}
         onPrev={handlePrev}
@@ -598,15 +577,6 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   pillText: { fontSize: font.base, fontWeight: "700" },
-  tapHint: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: space.sm,
-    paddingVertical: space.sm,
-    paddingHorizontal: space.md,
-  },
-  tapHintText: { flexShrink: 1, fontSize: font.sm, fontWeight: "700" },
   clearBtn: { alignSelf: "center", paddingVertical: space.lg },
   clearText: { fontSize: font.sm, fontWeight: "500" },
 });
