@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -75,6 +75,20 @@ export default function AddSheet({ visible, initialMode = "choose", theme, onClo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
+  // Le sélecteur de fichiers ne s'ouvre qu'une fois ce panneau complètement
+  // fermé : deux fenêtres qui se chevauchent perturbent le sélecteur sur iOS.
+  const pickAfterClose = useRef(false);
+  const openPickerIfPending = () => {
+    if (!pickAfterClose.current) return;
+    pickAfterClose.current = false;
+    onPickFiles();
+  };
+  const chooseFiles = () => {
+    pickAfterClose.current = true;
+    onClose();
+    if (Platform.OS !== "ios") setTimeout(openPickerIfPending, 350);
+  };
+
   const link = useMemo(() => parseLink(text), [text]);
   const canAdd = link.kind === "youtube" || link.kind === "stream";
   const info = describe(link, theme);
@@ -127,7 +141,13 @@ export default function AddSheet({ visible, initialMode = "choose", theme, onClo
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+      onDismiss={openPickerIfPending}
+    >
       <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Fermer" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : undefined}
@@ -150,11 +170,12 @@ export default function AddSheet({ visible, initialMode = "choose", theme, onClo
                   theme={theme}
                   icon="folder-open-outline"
                   title="Fichiers du téléphone"
-                  subtitle="MP3, M4A, WAV… copiés dans l'app"
-                  onPress={() => {
-                    onClose();
-                    onPickFiles();
-                  }}
+                  subtitle={
+                    Platform.OS === "ios"
+                      ? "Plusieurs à la fois : touche « Sélectionner » en haut à droite"
+                      : "Plusieurs à la fois : appui long sur un fichier"
+                  }
+                  onPress={chooseFiles}
                 />
                 <Option
                   theme={theme}

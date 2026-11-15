@@ -124,6 +124,13 @@ function Player() {
   // --- Lecture --------------------------------------------------------------
   const playTrack = useCallback(
     (track) => {
+      if (track.missing) {
+        Alert.alert(
+          "Fichier introuvable",
+          `« ${track.title} » n'est plus sur le téléphone. Retire-le et ajoute-le de nouveau.`
+        );
+        return;
+      }
       if (track.kind === "youtube") {
         player.pause();
         try {
@@ -304,10 +311,18 @@ function Player() {
         multiple: true,
       });
       if (res.canceled || !res.assets?.length) return;
-      const imported = await importAssets(res.assets);
+      const { imported, failed } = await importAssets(res.assets);
       // Les derniers ajouts passent en tête de playlist.
-      setTracks((prev) => [...imported, ...prev]);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      if (imported.length) {
+        setTracks((prev) => [...imported, ...prev]);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      }
+      if (failed.length) {
+        Alert.alert(
+          failed.length > 1 ? `${failed.length} fichiers non ajoutés` : "Fichier non ajouté",
+          `${failed.join("\n")}\n\nIls n'ont pas pu être copiés dans l'app.`
+        );
+      }
     } catch (e) {
       Alert.alert("Import impossible", "Ce fichier n'a pas pu être ajouté.");
       console.warn(e);

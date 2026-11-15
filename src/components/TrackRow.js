@@ -10,7 +10,9 @@ const SOURCE = {
 
 function TrackRow({ track, index, isCurrent, isPlaying, theme, onPress, onDelete }) {
   const source = SOURCE[track.kind];
-  const meta = source
+  const meta = track.missing
+    ? "Fichier introuvable · à réimporter"
+    : source
     ? [source.label, track.author].filter(Boolean).join(" · ")
     : [track.format, formatSize(track.size)].filter(Boolean).join(" · ");
 
@@ -24,6 +26,7 @@ function TrackRow({ track, index, isCurrent, isPlaying, theme, onPress, onDelete
       style={({ pressed }) => [
         styles.row,
         isCurrent && { backgroundColor: theme.accentSoft },
+        track.missing && { opacity: 0.5 },
         pressed && { opacity: 0.7 },
       ]}
     >
