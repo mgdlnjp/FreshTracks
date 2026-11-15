@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -311,9 +311,12 @@ function Player() {
     try {
       const res = await DocumentPicker.getDocumentAsync({
         type: ["audio/*"],
-        // Le sélecteur dépose sa copie dans le cache de l'app, que l'API
-        // legacy d'expo-file-system (src/library.js) a le droit de lire.
-        copyToCacheDirectory: true,
+        // Android : la copie « cache » du sélecteur atterrit dans le cache
+        // d'Expo Go lui-même, illisible pour l'app (« isn't readable »). On
+        // garde donc le lien content:// fourni par Android, toujours lisible,
+        // et src/library.js le copie dans le dossier de l'app.
+        // iOS : la copie en cache est lisible par l'API legacy.
+        copyToCacheDirectory: Platform.OS === "ios",
         multiple: true,
       });
       if (res.canceled || !res.assets?.length) return;
