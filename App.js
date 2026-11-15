@@ -10,7 +10,7 @@ import { setAudioModeAsync, useAudioPlayer, useAudioPlayerStatus } from "expo-au
 import YoutubePlayer from "react-native-youtube-iframe";
 
 import { font, formatSize, radius, space, useTheme } from "./src/theme";
-import { deleteTrackFile, importAssets, loadLibrary, saveLibrary } from "./src/library";
+import { deleteTrackFile, describeStorage, importAssets, loadLibrary, saveLibrary } from "./src/library";
 import TrackRow from "./src/components/TrackRow";
 import EmptyState from "./src/components/EmptyState";
 import NowPlaying from "./src/components/NowPlaying";
@@ -394,7 +394,15 @@ function Player() {
     <View style={[styles.header, { paddingTop: insets.top + space.lg }]}>
       <View style={styles.titleRow}>
         <View style={{ flex: 1 }}>
-          <Text style={[styles.appName, { color: theme.text }]}>
+          <Text
+            style={[styles.appName, { color: theme.text }]}
+            // Diagnostic en développement : appui long sur le titre.
+            onLongPress={
+              __DEV__
+                ? async () => Alert.alert("Diagnostic stockage", await describeStorage())
+                : undefined
+            }
+          >
             Fresh<Text style={{ color: theme.accentText }}>Tracks</Text>
           </Text>
           <Text style={[styles.subtitle, { color: theme.textMuted }]}>{subtitle}</Text>

@@ -78,6 +78,33 @@ export async function loadLibrary() {
   }
 }
 
+// Diagnostic (mode développement) : ce que l'app voit réellement sur le téléphone.
+export async function describeStorage() {
+  const lines = [];
+  try {
+    lines.push(`Dossier : ${tracksDir().uri.slice(-70)}`);
+    const files = tracksDir().list().filter((e) => e instanceof File);
+    lines.push(`Fichiers dans le dossier : ${files.length}`);
+    files.slice(0, 8).forEach((f) => lines.push(`  • ${f.name.slice(0, 40)}`));
+  } catch (e) {
+    lines.push(`Dossier illisible : ${e.message}`);
+  }
+  try {
+    const raw = await AsyncStorage.getItem(STORAGE_KEY);
+    const stored = raw ? JSON.parse(raw) : [];
+    const local = stored.filter((t) => !t.kind || t.kind === "file");
+    lines.push(`Fichiers mémorisés : ${local.length} (sur ${stored.length} morceaux)`);
+    local.slice(0, 8).forEach((t) => {
+      const found = resolveFile(t) ? "OK" : "ABSENT";
+      const where = t.fileName ? `nom=${t.fileName.slice(0, 28)}` : `chemin=…${(t.uri || "").slice(-40)}`;
+      lines.push(`  • ${found} · ${where}`);
+    });
+  } catch (e) {
+    lines.push(`Mémoire illisible : ${e.message}`);
+  }
+  return lines.join("\n");
+}
+
 export async function saveLibrary(tracks) {
   try {
     await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(tracks));
