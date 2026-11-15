@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, FlatList, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -307,7 +307,10 @@ function Player() {
     try {
       const res = await DocumentPicker.getDocumentAsync({
         type: ["audio/*"],
-        copyToCacheDirectory: true,
+        // iOS : le sélecteur fournit déjà une copie du fichier. Passer par le
+        // cache d'Expo Go la place dans un dossier que le module de fichiers
+        // n'a pas le droit de lire (« permission manquante »).
+        copyToCacheDirectory: Platform.OS !== "ios",
         multiple: true,
       });
       if (res.canceled || !res.assets?.length) return;
@@ -320,7 +323,7 @@ function Player() {
       if (failed.length) {
         Alert.alert(
           failed.length > 1 ? `${failed.length} fichiers non ajoutés` : "Fichier non ajouté",
-          `${failed.join("\n")}\n\nIls n'ont pas pu être copiés dans l'app.`
+          `${failed.map((f) => `${f.name}\n→ ${f.reason}`).join("\n\n")}`
         );
       }
     } catch (e) {

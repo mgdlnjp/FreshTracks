@@ -128,8 +128,12 @@ async function copyInto(dir, sourceUri, fileName) {
   const source = new File(sourceUri);
   try {
     await source.copy(dest);
-  } catch {
-    source.copySync(dest);
+  } catch (first) {
+    try {
+      source.copySync(dest);
+    } catch {
+      throw first; // on remonte la vraie raison du premier échec
+    }
   }
   if (!dest.exists) throw new Error("Le fichier copié est introuvable.");
   return dest;
@@ -161,7 +165,7 @@ export async function importAssets(assets) {
       });
     } catch (e) {
       console.warn("Copie impossible :", name, e);
-      failed.push(name);
+      failed.push({ name, reason: String(e?.message || e).slice(0, 160) });
     }
   }
   return { imported, failed };
