@@ -21,6 +21,39 @@ function ControlButton({ icon, label, onPress, color, active, theme, disabled })
   );
 }
 
+function RepeatButton({ repeat, theme, onPress }) {
+  const label =
+    repeat === "off" ? "Répéter : désactivé" : repeat === "all" ? "Répéter : tout" : "Répéter : ce morceau";
+  return (
+    <View>
+      <ControlButton
+        theme={theme}
+        icon="repeat"
+        label={label}
+        active={repeat !== "off"}
+        color={repeat !== "off" ? theme.accentText : theme.textMuted}
+        onPress={onPress}
+      />
+      {repeat === "one" ? (
+        <Text style={[styles.badge, { backgroundColor: theme.accent, color: theme.onAccent }]}>1</Text>
+      ) : null}
+    </View>
+  );
+}
+
+function ShuffleButton({ shuffle, theme, onPress }) {
+  return (
+    <ControlButton
+      theme={theme}
+      icon="shuffle"
+      label={shuffle ? "Lecture aléatoire activée" : "Lecture aléatoire désactivée"}
+      active={shuffle}
+      color={shuffle ? theme.accentText : theme.textMuted}
+      onPress={onPress}
+    />
+  );
+}
+
 export default function NowPlaying({
   theme,
   track,
@@ -49,10 +82,7 @@ export default function NowPlaying({
 
   if (!track) return null;
 
-  const repeatIcon = "repeat";
   const sourceLabel = track.kind === "youtube" ? "YouTube · " : track.kind === "stream" ? "Streaming · " : "";
-  const repeatLabel =
-    repeat === "off" ? "Répéter : désactivé" : repeat === "all" ? "Répéter : tout" : "Répéter : ce morceau";
 
   return (
     <View
@@ -100,8 +130,18 @@ export default function NowPlaying({
         ) : null}
       </View>
 
-      {/* Vidéo YouTube : on la pilote directement, sans nos boutons. */}
-      {video ? null : (
+      {/* Vidéo YouTube : lecture/pause et avance se font sur la vidéo ;
+          on garde la navigation dans la playlist. */}
+      {video ? (
+        <View style={[styles.videoControls, { borderTopColor: theme.border }]}>
+          <ShuffleButton shuffle={shuffle} theme={theme} onPress={onToggleShuffle} />
+          <View style={styles.skipGroup}>
+            <ControlButton theme={theme} icon="play-skip-back" label="Précédent" color={theme.text} onPress={onPrev} />
+            <ControlButton theme={theme} icon="play-skip-forward" label="Suivant" color={theme.text} onPress={onNext} />
+          </View>
+          <RepeatButton repeat={repeat} theme={theme} onPress={onCycleRepeat} />
+        </View>
+      ) : (
       <>
       <Slider
         style={styles.slider}
@@ -127,14 +167,7 @@ export default function NowPlaying({
       </View>
 
       <View style={styles.controls}>
-        <ControlButton
-          theme={theme}
-          icon="shuffle"
-          label={shuffle ? "Lecture aléatoire activée" : "Lecture aléatoire désactivée"}
-          active={shuffle}
-          color={shuffle ? theme.accentText : theme.textMuted}
-          onPress={onToggleShuffle}
-        />
+        <ShuffleButton shuffle={shuffle} theme={theme} onPress={onToggleShuffle} />
         <ControlButton theme={theme} icon="play-skip-back" label="Précédent" color={theme.text} onPress={onPrev} />
         <Pressable
           onPress={onTogglePlay}
@@ -154,19 +187,7 @@ export default function NowPlaying({
           />
         </Pressable>
         <ControlButton theme={theme} icon="play-skip-forward" label="Suivant" color={theme.text} onPress={onNext} />
-        <View>
-          <ControlButton
-            theme={theme}
-            icon={repeatIcon}
-            label={repeatLabel}
-            active={repeat !== "off"}
-            color={repeat !== "off" ? theme.accentText : theme.textMuted}
-            onPress={onCycleRepeat}
-          />
-          {repeat === "one" ? (
-            <Text style={[styles.badge, { backgroundColor: theme.accent, color: theme.onAccent }]}>1</Text>
-          ) : null}
-        </View>
+        <RepeatButton repeat={repeat} theme={theme} onPress={onCycleRepeat} />
       </View>
       </>
       )}
@@ -196,6 +217,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#000",
   },
   head: { flexDirection: "row", alignItems: "center", gap: space.md },
+  videoControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: space.md,
+    paddingTop: space.sm,
+    paddingHorizontal: space.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+  skipGroup: { flexDirection: "row", gap: space.lg },
   close: {
     width: 36,
     height: 36,
