@@ -413,7 +413,12 @@ function Player() {
   );
 
   const header = (
-    <View style={[styles.header, { paddingTop: insets.top + space.lg }]}>
+    <View
+      style={[
+        styles.header,
+        { paddingTop: insets.top + space.md, borderBottomColor: tracks.length ? theme.border : "transparent" },
+      ]}
+    >
       <View style={styles.titleRow}>
         <View style={{ flex: 1 }}>
           <Text
@@ -475,29 +480,27 @@ function Player() {
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       <StatusBar style={theme.dark ? "light" : "dark"} />
 
+      {/* En-tête fixe (titre + bouton +) : reste visible quand la playlist défile. */}
+      {header}
+
       <ReorderableList
         data={tracks}
         keyExtractor={(t) => t.id}
         renderItem={renderItem}
         onReorder={handleReorder}
         style={{ flex: 1 }}
-        ListHeaderComponent={header}
         ListFooterComponent={footer}
         ListEmptyComponent={loaded ? <EmptyState theme={theme} onAdd={() => openSheet("choose")} /> : null}
         contentContainerStyle={{
           // Le panneau de lecture est ancré sous la liste : pas besoin de
           // réserver sa hauteur ; l'encoche du bas n'est utile que sans panneau.
+          paddingTop: space.sm,
           paddingBottom: (tracks.length ? 0 : insets.bottom) + space.md,
         }}
         ItemSeparatorComponent={() => <View style={{ height: space.xs }} />}
         showsVerticalScrollIndicator={false}
       />
 
-      {/* Bandeau derrière la barre d'état pour que la liste ne passe pas dessous. */}
-      <View
-        pointerEvents="none"
-        style={[styles.statusScrim, { height: insets.top, backgroundColor: theme.background }]}
-      />
 
       {tracks.length ? (
       <NowPlaying
@@ -556,10 +559,10 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  statusScrim: { position: "absolute", top: 0, left: 0, right: 0 },
   header: {
     paddingHorizontal: space.md,
     paddingBottom: space.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   titleRow: { flexDirection: "row", alignItems: "center", gap: space.md },
   appName: {
