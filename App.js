@@ -35,7 +35,6 @@ function Player() {
   const [shuffle, setShuffle] = useState(false);
   const [repeat, setRepeat] = useState("off");
   const [sheet, setSheet] = useState({ visible: false, mode: "choose" });
-  const [cardHeight, setCardHeight] = useState(0);
 
   // Lecteur audio (fichiers + streaming)
   const player = useAudioPlayer(null, { updateInterval: 250 });
@@ -486,8 +485,9 @@ function Player() {
         ListFooterComponent={footer}
         ListEmptyComponent={loaded ? <EmptyState theme={theme} onAdd={() => openSheet("choose")} /> : null}
         contentContainerStyle={{
-          // Le panneau de lecture reste ouvert dès que la playlist n'est pas vide.
-          paddingBottom: (tracks.length ? cardHeight + space.sm : 0) + insets.bottom + space.xl,
+          // Le panneau de lecture est ancré sous la liste : pas besoin de
+          // réserver sa hauteur ; l'encoche du bas n'est utile que sans panneau.
+          paddingBottom: (tracks.length ? 0 : insets.bottom) + space.md,
         }}
         ItemSeparatorComponent={() => <View style={{ height: space.xs }} />}
         showsVerticalScrollIndicator={false}
@@ -513,7 +513,6 @@ function Player() {
           tap();
           stopPlayback();
         }}
-        onLayout={(e) => setCardHeight(e.nativeEvent.layout.height)}
         onTogglePlay={handleTogglePlay}
         onPrev={handlePrev}
         onNext={() => {

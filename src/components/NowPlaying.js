@@ -98,7 +98,7 @@ export default function NowPlaying({
           backgroundColor: theme.surfaceRaised,
           borderColor: theme.border,
           shadowColor: theme.dark ? "#000" : "#1C1917",
-          bottom: bottomInset + space.sm,
+          marginBottom: bottomInset + space.sm,
         },
       ]}
     >
@@ -205,10 +205,11 @@ export default function NowPlaying({
 }
 
 const styles = StyleSheet.create({
+  // Panneau ancré sous la liste (pas superposé) : la playlist s'arrête
+  // au-dessus, rien ne défile derrière ni en dessous.
   card: {
-    position: "absolute",
-    left: space.sm,
-    right: space.sm,
+    marginHorizontal: space.sm,
+    marginTop: space.sm,
     borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth,
     paddingTop: space.md,
