@@ -40,10 +40,14 @@ function Player() {
   const audioStatus = useAudioPlayerStatus(player);
 
   // Lecteur YouTube (iframe officielle)
+  // ytPlaying = ce qu'on demande au lecteur ; ytState = ce qu'il fait vraiment.
   const ytRef = useRef(null);
   const [ytPlaying, setYtPlaying] = useState(false);
+  const [ytState, setYtState] = useState("unstarted");
+  const [ytNeedsTap, setYtNeedsTap] = useState(false);
   const [ytTime, setYtTime] = useState(0);
   const [ytDuration, setYtDuration] = useState(0);
+  const ytActuallyPlaying = ytState === "playing" || ytState === "buffering";
 
   // Refs pour toujours lire l'état à jour dans les callbacks.
   const tracksRef = useRef(tracks);
@@ -57,7 +61,7 @@ function Player() {
 
   // État de lecture unifié pour l'interface.
   const status = isYT
-    ? { playing: ytPlaying, currentTime: ytTime, duration: ytDuration }
+    ? { playing: ytActuallyPlaying, currentTime: ytTime, duration: ytDuration }
     : {
         playing: audioStatus.playing,
         currentTime: audioStatus.currentTime,
@@ -105,6 +109,30 @@ function Player() {
     return () => clearInterval(id);
   }, [isYT, ytPlaying]);
 
+  // iOS peut refuser de démarrer le son sans un vrai toucher sur la vidéo :
+  // si rien ne démarre après 3 s, on invite à toucher la vidéo.
+  useEffect(() => {
+    if (!isYT || !ytPlaying || ytActuallyPlaying) {
+      setYtNeedsTap(false);
+      return;
+    }
+    const id = setTimeout(() => setYtNeedsTap(true), 3000);
+    return () => clearTimeout(id);
+  }, [isYT, ytPlaying, ytActuallyPlaying]);
+
+  // Demande la lecture YouTube. Si la demande était déjà « en cours » (bloquée),
+  // on la relance pour renvoyer réellement l'ordre au lecteur.
+  const ytPlayingRef = useRef(ytPlaying);
+  ytPlayingRef.current = ytPlaying;
+  const requestYtPlay = useCallback(() => {
+    if (ytPlayingRef.current) {
+      setYtPlaying(false);
+      setTimeout(() => setYtPlaying(true), 60);
+    } else {
+      setYtPlaying(true);
+    }
+  }, []);
+
   // --- Lecture --------------------------------------------------------------
   const playTrack = useCallback(
     (track) => {
@@ -115,6 +143,7 @@ function Player() {
         } catch {}
         setYtTime(0);
         setYtDuration(0);
+        setYtState("unstarted");
         setYtPlaying(true);
         setCurrentId(track.id);
         return;
@@ -197,18 +226,19 @@ function Player() {
   // Événements de l'iframe YouTube.
   const onYoutubeState = useCallback(
     (state) => {
+      setYtState(state);
       if (state === "playing") setYtPlaying(true);
       else if (state === "paused") setYtPlaying(false);
       else if (state === "ended") {
         if (repeat === "one") {
           ytRef.current?.seekTo(0, true);
-          setYtPlaying(true);
+          requestYtPlay();
         } else {
           handleNext({ auto: true });
         }
       }
     },
-    [repeat, handleNext]
+    [repeat, handleNext, requestYtPlay]
   );
 
   const onYoutubeError = useCallback(
@@ -229,7 +259,8 @@ function Player() {
   const setPlaying = useCallback(
     (shouldPlay) => {
       if (isYT) {
-        setYtPlaying(shouldPlay);
+        if (shouldPlay) requestYtPlay();
+        else setYtPlaying(false);
         return;
       }
       if (shouldPlay) {
@@ -241,7 +272,7 @@ function Player() {
         player.pause();
       }
     },
-    [isYT, audioStatus.duration, audioStatus.currentTime, player]
+    [isYT, audioStatus.duration, audioStatus.currentTime, player, requestYtPlay]
   );
 
   const handleTogglePlay = useCallback(() => {
@@ -428,18 +459,28 @@ function Player() {
 
   // Largeur de la vidéo = carte (écran − 2×8) − padding (2×16).
   const videoWidth = width - space.sm * 2 - space.md * 2;
+  // YouTube impose un lecteur visible d'au moins 200 px de haut.
   const video = isYT ? (
-    <YoutubePlayer
-      ref={ytRef}
-      width={videoWidth}
-      height={Math.round((videoWidth * 9) / 16)}
-      videoId={currentTrack.videoId}
-      play={ytPlaying}
-      onChangeState={onYoutubeState}
-      onError={onYoutubeError}
-      initialPlayerParams={{ controls: false, modestbranding: true, rel: false }}
-      webViewProps={{ allowsInlineMediaPlayback: true, mediaPlaybackRequiresUserAction: false }}
-    />
+    <View>
+      <YoutubePlayer
+        ref={ytRef}
+        width={videoWidth}
+        height={Math.max(200, Math.round((videoWidth * 9) / 16))}
+        videoId={currentTrack.videoId}
+        play={ytPlaying}
+        onChangeState={onYoutubeState}
+        onError={onYoutubeError}
+        // Contrôles YouTube actifs : un toucher sur la vidéo lance toujours la lecture sur iOS.
+        initialPlayerParams={{ controls: true, modestbranding: true, rel: false }}
+        webViewProps={{ allowsInlineMediaPlayback: true, mediaPlaybackRequiresUserAction: false }}
+      />
+      {ytNeedsTap ? (
+        <View style={styles.tapHint} pointerEvents="none">
+          <Ionicons name="hand-left-outline" size={16} color="#FFFFFF" />
+          <Text style={styles.tapHintText}>Touche la vidéo pour lancer le son</Text>
+        </View>
+      ) : null}
+    </View>
   ) : null;
 
   return (
@@ -552,6 +593,15 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   pillText: { fontSize: font.base, fontWeight: "700" },
+  tapHint: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: space.sm,
+    paddingVertical: space.sm,
+    backgroundColor: "rgba(12, 10, 9, 0.85)",
+  },
+  tapHintText: { color: "#FFFFFF", fontSize: font.sm, fontWeight: "600" },
   clearBtn: { alignSelf: "center", paddingVertical: space.lg },
   clearText: { fontSize: font.sm, fontWeight: "500" },
 });
