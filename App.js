@@ -286,7 +286,8 @@ function Player() {
       });
       if (res.canceled || !res.assets?.length) return;
       const imported = await importAssets(res.assets);
-      setTracks((prev) => [...prev, ...imported]);
+      // Les derniers ajouts passent en tête de playlist.
+      setTracks((prev) => [...imported, ...prev]);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
     } catch (e) {
       Alert.alert("Import impossible", "Ce fichier n'a pas pu être ajouté.");
@@ -295,7 +296,7 @@ function Player() {
   }, []);
 
   const handleAddTrack = useCallback((track) => {
-    setTracks((prev) => [...prev, track]);
+    setTracks((prev) => [track, ...prev]);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
   }, []);
 

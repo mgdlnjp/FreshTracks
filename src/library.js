@@ -15,15 +15,18 @@ export async function loadLibrary() {
     if (!raw) return [];
     const tracks = JSON.parse(raw);
     // On ignore les fichiers locaux qui auraient disparu du téléphone
-    // (les liens YouTube / streaming sont toujours conservés).
-    return tracks.filter((t) => {
-      if (t.kind && t.kind !== "file") return true;
-      try {
-        return new File(t.uri).exists;
-      } catch {
-        return false;
-      }
-    });
+    // (les liens YouTube / streaming sont toujours conservés),
+    // puis on trie du plus récent au plus ancien (tri stable).
+    return tracks
+      .filter((t) => {
+        if (t.kind && t.kind !== "file") return true;
+        try {
+          return new File(t.uri).exists;
+        } catch {
+          return false;
+        }
+      })
+      .sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
   } catch (e) {
     console.warn("Chargement de la bibliothèque impossible :", e);
     return [];
@@ -53,6 +56,8 @@ function extension(fileName) {
 export async function importAssets(assets) {
   const dir = tracksDir();
   const imported = [];
+  // Même date pour tout le lot : les fichiers gardent l'ordre de sélection.
+  const batchAt = Date.now();
   for (const asset of assets) {
     const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
     const safeName = asset.name.replace(/[^\w.\-]+/g, "_");
@@ -71,7 +76,7 @@ export async function importAssets(assets) {
       format: extension(asset.name),
       size: asset.size ?? null,
       uri,
-      addedAt: Date.now(),
+      addedAt: batchAt,
     });
   }
   return imported;
