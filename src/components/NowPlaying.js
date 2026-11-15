@@ -74,15 +74,20 @@ export default function NowPlaying({
   onClose,
 }) {
   const [scrub, setScrub] = useState(null);
-  const duration = status.duration > 0 ? status.duration : 0;
-  const current = scrub ?? status.currentTime ?? 0;
 
   // Réinitialise le scrub si le morceau change.
   useEffect(() => setScrub(null), [track?.id]);
 
-  if (!track) return null;
-
-  const sourceLabel = track.kind === "youtube" ? "YouTube · " : track.kind === "stream" ? "Streaming · " : "";
+  // Panneau toujours ouvert : sans morceau en cours, il reste prêt à jouer
+  // (lecture lance le premier morceau, ou un au hasard en aléatoire).
+  const idle = !track;
+  const duration = !idle && status.duration > 0 ? status.duration : 0;
+  const current = idle ? 0 : scrub ?? status.currentTime ?? 0;
+  const shown = track ?? { title: "Prêt à jouer", kind: "file" };
+  const sourceLabel = shown.kind === "youtube" ? "YouTube · " : shown.kind === "stream" ? "Streaming · " : "";
+  const subtitle = idle
+    ? `${total} morceau${total > 1 ? "x" : ""} · touche lecture ou un titre`
+    : `${sourceLabel}${position} sur ${total}`;
 
   return (
     <View
@@ -100,21 +105,25 @@ export default function NowPlaying({
       {video ? <View style={styles.video}>{video}</View> : null}
       <View style={styles.head}>
         {video ? null : (
-          <View style={[styles.artwork, { backgroundColor: theme.accent }]}>
+          <View
+            style={[
+              styles.artwork,
+              { backgroundColor: idle ? theme.accentSoft : theme.accent },
+            ]}
+          >
             <Ionicons
-              name={track.kind === "stream" ? "radio" : "musical-note"}
+              name={shown.kind === "stream" ? "radio" : "musical-note"}
               size={22}
-              color={theme.onAccent}
+              color={idle ? theme.accentText : theme.onAccent}
             />
           </View>
         )}
         <View style={{ flex: 1 }}>
           <Text numberOfLines={1} style={[styles.title, { color: theme.text }]}>
-            {track.title}
+            {shown.title}
           </Text>
-          <Text style={[styles.sub, { color: theme.textMuted }]}>
-            {sourceLabel}
-            {position} sur {total}
+          <Text numberOfLines={1} style={[styles.sub, { color: theme.textMuted }]}>
+            {subtitle}
           </Text>
         </View>
         {video ? (

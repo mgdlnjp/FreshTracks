@@ -208,7 +208,7 @@ function Player() {
 
   const handlePrev = useCallback(() => {
     tap();
-    if (status.currentTime > 3) {
+    if (currentIdRef.current && status.currentTime > 3) {
       seekTo(0);
       return;
     }
@@ -436,43 +436,6 @@ function Player() {
           </Pressable>
         ) : null}
       </View>
-
-      {tracks.length ? (
-        <View style={styles.actions}>
-          <Pressable
-            onPress={() => {
-              tap();
-              setShuffle(false);
-              playTrack(tracks[0]);
-            }}
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.pill,
-              { backgroundColor: theme.accent },
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Ionicons name="play" size={18} color={theme.onAccent} />
-            <Text style={[styles.pillText, { color: theme.onAccent }]}>Tout lire</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              tap();
-              setShuffle(true);
-              playTrack(tracks[Math.floor(Math.random() * tracks.length)]);
-            }}
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.pill,
-              { backgroundColor: theme.surface, borderColor: theme.border, borderWidth: 1 },
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Ionicons name="shuffle" size={18} color={theme.accentText} />
-            <Text style={[styles.pillText, { color: theme.text }]}>Aléatoire</Text>
-          </Pressable>
-        </View>
-      ) : null}
     </View>
   );
 
@@ -512,7 +475,8 @@ function Player() {
         ListFooterComponent={footer}
         ListEmptyComponent={loaded ? <EmptyState theme={theme} onAdd={() => openSheet("choose")} /> : null}
         contentContainerStyle={{
-          paddingBottom: (currentTrack ? cardHeight + space.sm : 0) + insets.bottom + space.xl,
+          // Le panneau de lecture reste ouvert dès que la playlist n'est pas vide.
+          paddingBottom: (tracks.length ? cardHeight + space.sm : 0) + insets.bottom + space.xl,
         }}
         ItemSeparatorComponent={() => <View style={{ height: space.xs }} />}
         showsVerticalScrollIndicator={false}
@@ -524,6 +488,7 @@ function Player() {
         style={[styles.statusScrim, { height: insets.top, backgroundColor: theme.background }]}
       />
 
+      {tracks.length ? (
       <NowPlaying
         theme={theme}
         track={currentTrack}
@@ -555,6 +520,7 @@ function Player() {
         }}
         bottomInset={insets.bottom}
       />
+      ) : null}
 
       <AddSheet
         visible={sheet.visible}
@@ -599,21 +565,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  actions: {
-    flexDirection: "row",
-    gap: space.sm,
-    marginTop: space.lg,
-  },
-  pill: {
-    flex: 1,
-    height: 48,
-    borderRadius: radius.full,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: space.sm,
-  },
-  pillText: { fontSize: font.base, fontWeight: "700" },
   clearBtn: { alignSelf: "center", paddingVertical: space.lg },
   clearText: { fontSize: font.sm, fontWeight: "500" },
 });
