@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Animated,
+  PanResponder,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -75,6 +77,31 @@ export default function AddSheet({ visible, initialMode = "choose", theme, onClo
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
 
+  // Glisser la poignée vers le bas ferme le panneau.
+  const drag = useRef(new Animated.Value(0)).current;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, g) => g.dy > 4,
+      onPanResponderMove: (_, g) => drag.setValue(Math.max(0, g.dy)),
+      onPanResponderRelease: (_, g) => {
+        if (g.dy > 80 || g.vy > 0.8) {
+          onCloseRef.current();
+        } else {
+          Animated.spring(drag, { toValue: 0, useNativeDriver: true }).start();
+        }
+      },
+      onPanResponderTerminate: () =>
+        Animated.spring(drag, { toValue: 0, useNativeDriver: true }).start(),
+    })
+  ).current;
+
+  useEffect(() => {
+    if (visible) drag.setValue(0);
+  }, [visible, drag]);
+
   // Le sélecteur de fichiers ne s'ouvre qu'une fois ce panneau complètement
   // fermé : deux fenêtres qui se chevauchent perturbent le sélecteur sur iOS.
   const pickAfterClose = useRef(false);
@@ -148,19 +175,44 @@ export default function AddSheet({ visible, initialMode = "choose", theme, onClo
       onRequestClose={onClose}
       onDismiss={openPickerIfPending}
     >
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Fermer" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.sheetWrap}
-        pointerEvents="box-none"
-      >
-        <View
+      {/* Rien ne se superpose : la zone du haut ferme le panneau au toucher,
+          le panneau est en dessous (avant, une couche invisible couvrait
+          l'écran et bloquait les touchers sur Android). */}
+      <View style={styles.overlay}>
+        <Pressable
+          style={styles.dismissArea}
+          onPress={onClose}
+          accessibilityRole="button"
+          accessibilityLabel="Fermer le panneau"
+        />
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <Animated.View
           style={[
             styles.sheet,
-            { backgroundColor: theme.background, paddingBottom: insets.bottom + space.md },
+            {
+              backgroundColor: theme.background,
+              paddingBottom: insets.bottom + space.md,
+              transform: [{ translateY: drag }],
+            },
           ]}
         >
-          <View style={[styles.grabber, { backgroundColor: theme.border }]} />
+          {/* Poignée : faire glisser vers le bas pour fermer. */}
+          <View style={styles.handleArea} {...panResponder.panHandlers}>
+            <View style={[styles.grabber, { backgroundColor: theme.border }]} />
+          </View>
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Fermer"
+            style={({ pressed }) => [
+              styles.closeBtn,
+              { backgroundColor: theme.surface, borderColor: theme.border },
+              pressed && { opacity: 0.6 },
+            ]}
+          >
+            <Ionicons name="close" size={20} color={theme.textMuted} />
+          </Pressable>
 
           {mode === "choose" ? (
             <>
@@ -262,20 +314,39 @@ export default function AddSheet({ visible, initialMode = "choose", theme, onClo
               </Pressable>
             </>
           )}
-        </View>
-      </KeyboardAvoidingView>
+        </Animated.View>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(12, 10, 9, 0.5)" },
-  sheetWrap: { flex: 1, justifyContent: "flex-end" },
+  overlay: { flex: 1, backgroundColor: "rgba(12, 10, 9, 0.5)" },
+  dismissArea: { flex: 1 },
   sheet: {
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     paddingHorizontal: space.md,
+  },
+  handleArea: {
+    alignSelf: "stretch",
+    alignItems: "center",
     paddingTop: space.sm,
+    paddingBottom: space.xs,
+    marginHorizontal: space.xxl,
+  },
+  closeBtn: {
+    position: "absolute",
+    top: space.sm,
+    right: space.sm,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1,
   },
   grabber: {
     alignSelf: "center",
@@ -284,7 +355,7 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     marginBottom: space.md,
   },
-  title: { fontSize: font.xl, fontWeight: "700", marginBottom: space.md },
+  title: { fontSize: font.xl, fontWeight: "700", marginBottom: space.md, paddingRight: 44 },
   option: {
     flexDirection: "row",
     alignItems: "center",
