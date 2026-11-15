@@ -96,8 +96,12 @@ export async function loadLibrary() {
         return { ...t, kind: "file", uri, fileName: storedFileName(t), missing: false };
       })
     );
-    const orphans = await recoverOrphans(tracks);
-    return [...tracks, ...orphans].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
+    // On garde l'ordre enregistré (l'utilisateur peut réordonner la playlist) ;
+    // les fichiers récupérés vont à la fin, du plus récent au plus ancien.
+    const orphans = (await recoverOrphans(tracks)).sort(
+      (a, b) => (b.addedAt || 0) - (a.addedAt || 0)
+    );
+    return [...tracks, ...orphans];
   } catch (e) {
     console.warn("Chargement de la bibliothèque impossible :", e);
     return [];

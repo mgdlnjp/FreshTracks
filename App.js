@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, FlatList, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Alert, Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import ReorderableList, { reorderItems } from "react-native-reorderable-list";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -343,6 +345,13 @@ function Player() {
     }
   }, []);
 
+  // Glisser-déposer : l'ordre choisi est gardé (sauvegardé avec la playlist).
+  const handleReorder = useCallback(({ from, to }) => {
+    if (from === to) return;
+    setTracks((prev) => reorderItems(prev, from, to));
+    Haptics.selectionAsync().catch(() => {});
+  }, []);
+
   const handleAddTrack = useCallback((track) => {
     setTracks((prev) => [track, ...prev]);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -467,10 +476,12 @@ function Player() {
     <View style={[styles.root, { backgroundColor: theme.background }]}>
       <StatusBar style={theme.dark ? "light" : "dark"} />
 
-      <FlatList
+      <ReorderableList
         data={tracks}
         keyExtractor={(t) => t.id}
         renderItem={renderItem}
+        onReorder={handleReorder}
+        style={{ flex: 1 }}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
         ListEmptyComponent={loaded ? <EmptyState theme={theme} onAdd={() => openSheet("choose")} /> : null}
@@ -536,9 +547,11 @@ function Player() {
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <Player />
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <Player />
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

@@ -1,6 +1,8 @@
 import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { useIsActive, useReorderableDrag } from "react-native-reorderable-list";
 import { font, formatSize, radius, space } from "../theme";
 
 const SOURCE = {
@@ -10,6 +12,13 @@ const SOURCE = {
 
 function TrackRow({ track, index, isCurrent, isPlaying, theme, onPress, onDelete }) {
   const source = SOURCE[track.kind];
+  // Glisser-déposer : appui long sur la ligne, ou appui sur la poignée ≡.
+  const drag = useReorderableDrag();
+  const isActive = useIsActive();
+  const startDrag = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    drag();
+  };
   const meta = track.missing
     ? "Fichier introuvable · à réimporter"
     : source
@@ -19,15 +28,20 @@ function TrackRow({ track, index, isCurrent, isPlaying, theme, onPress, onDelete
   return (
     <Pressable
       onPress={() => onPress(track)}
-      onLongPress={() => onDelete(track)}
+      onLongPress={startDrag}
+      delayLongPress={250}
       accessibilityRole="button"
       accessibilityLabel={`${track.title}${isCurrent ? ", en cours" : ""}`}
-      accessibilityHint="Appui long pour supprimer"
+      accessibilityHint="Appui long pour déplacer dans la playlist"
       style={({ pressed }) => [
         styles.row,
         isCurrent && { backgroundColor: theme.accentSoft },
         track.missing && { opacity: 0.5 },
-        pressed && { opacity: 0.7 },
+        pressed && !isActive && { opacity: 0.7 },
+        isActive && [
+          styles.activeRow,
+          { backgroundColor: theme.surfaceRaised, borderColor: theme.accent, shadowColor: theme.dark ? "#000" : "#1C1917" },
+        ],
       ]}
     >
       <View
@@ -81,6 +95,16 @@ function TrackRow({ track, index, isCurrent, isPlaying, theme, onPress, onDelete
       >
         <Ionicons name="close" size={20} color={theme.textFaint} />
       </Pressable>
+
+      <Pressable
+        onPressIn={startDrag}
+        hitSlop={4}
+        accessibilityRole="button"
+        accessibilityLabel={`Déplacer ${track.title}`}
+        style={styles.handle}
+      >
+        <Ionicons name="reorder-two" size={22} color={isActive ? theme.accentText : theme.textMuted} />
+      </Pressable>
     </Pressable>
   );
 }
@@ -127,5 +151,20 @@ const styles = StyleSheet.create({
     height: 44,
     alignItems: "center",
     justifyContent: "center",
+  },
+  // La poignée colle au bouton ✕ (annule le gap de la ligne).
+  handle: {
+    width: 40,
+    height: 44,
+    marginLeft: -space.md,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activeRow: {
+    borderWidth: 1,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
   },
 });
