@@ -75,6 +75,10 @@ function Player() {
       interruptionMode: "doNotMix",
     }).catch(() => {});
     loadLibrary().then((lib) => {
+      console.log(
+        `[démarrage] ${lib.length} morceau(x) :`,
+        lib.map((t) => `${t.kind}${t.missing ? " (INTROUVABLE)" : ""} ${t.title}`)
+      );
       setTracks(lib);
       setLoaded(true);
     });
@@ -314,6 +318,11 @@ function Player() {
       });
       if (res.canceled || !res.assets?.length) return;
       const { imported, failed } = await importAssets(res.assets);
+      console.log(
+        `[import] ${imported.length} ajouté(s), ${failed.length} échec(s)`,
+        res.assets.map((a) => a.uri),
+        failed
+      );
       // Les derniers ajouts passent en tête de playlist.
       if (imported.length) {
         setTracks((prev) => [...imported, ...prev]);

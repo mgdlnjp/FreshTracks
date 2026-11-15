@@ -1,3 +1,4 @@
+import './src/devlog'; // logs vers le Mac en développement (inactif en production)
 import { registerRootComponent } from 'expo';
 
 import App from './App';

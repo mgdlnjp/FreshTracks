@@ -48,3 +48,4 @@ __pycache__/
 ios/Pods/
 android/build/
 android/.gradle/
+devlog.txt
