@@ -18,7 +18,8 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#EA580C"
+        "backgroundColor": "#EA580C",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.magdeleinejp.FreshTracks"
     },
